@@ -5,7 +5,7 @@ These are the upstream tags newer than the newest vX.Y.Z tag in GHCR, or only
 the newest upstream tag when GHCR has none yet.
 
 Environment: IMAGE (e.g. djosh34/cliproxyapi), UPSTREAM (git URL), and
-optionally GHCR_USER and GHCR_TOKEN for a private package.
+GHCR_USER and GHCR_TOKEN, required until the package exists and is public.
 """
 
 import base64

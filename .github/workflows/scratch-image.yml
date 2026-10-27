@@ -29,11 +29,11 @@ jobs:
       packages: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       - name: Build amd64 image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile.scratch
@@ -46,7 +46,7 @@ jobs:
       - name: Smoke test
         run: .github/scripts/scratch-smoke-test.sh cliproxyapi:smoke
       - name: Build both platforms
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile.scratch
@@ -65,13 +65,20 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
+      actions: write
       contents: read
       packages: read
     outputs:
       tags: ${{ steps.tags.outputs.tags }}
     steps:
+      # GitHub disables schedules after 60 days without repo activity, and the
+      # fork's main gets no new commits. Re-enabling resets that timer.
+      - name: Keep the schedule enabled
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/scratch-image.yml/enable"
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Find upstream tags without an image
         id: tags
         env:
@@ -89,15 +96,18 @@ jobs:
     permissions:
       contents: read
       packages: write
+    # Oldest tag first, one at a time, stopping at the first failure. Otherwise a
+    # newer tag in GHCR would hide an older failed one from the next run.
     strategy:
-      fail-fast: false
+      max-parallel: 1
+      fail-fast: true
       matrix:
         tag: ${{ fromJSON(needs.plan.outputs.tags) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Checkout upstream ${{ matrix.tag }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: router-for-me/CLIProxyAPI
           ref: refs/tags/${{ matrix.tag }}
@@ -108,9 +118,9 @@ jobs:
           echo "commit=$(git -C upstream-src rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       - name: Build amd64 image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: upstream-src
           file: Dockerfile.scratch
@@ -124,14 +134,14 @@ jobs:
       - name: Smoke test
         run: .github/scripts/scratch-smoke-test.sh cliproxyapi:smoke
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push both platforms
         id: push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: upstream-src
           file: Dockerfile.scratch
