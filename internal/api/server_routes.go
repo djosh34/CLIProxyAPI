@@ -564,6 +564,14 @@ func (s *Server) codexAlphaSearch(c *gin.Context) {
 	_, _ = c.Writer.Write(upstreamBody)
 }
 
+// AttachRoutes lets the caller add its own routes before the server starts.
+func (s *Server) AttachRoutes(register func(*gin.Engine)) {
+	if s == nil || s.engine == nil || register == nil {
+		return
+	}
+	register(s.engine)
+}
+
 // AttachWebsocketRoute registers a websocket upgrade handler on the primary Gin engine.
 // The handler is served as-is without additional middleware beyond the standard stack already configured.
 func (s *Server) AttachWebsocketRoute(path string, handler http.Handler) {

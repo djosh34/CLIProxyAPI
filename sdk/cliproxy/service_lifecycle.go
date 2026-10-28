@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/api"
+	"github.com/router-for-me/CLIProxyAPI/v8/internal/history"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/home"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/redisqueue"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/registry"
@@ -123,6 +124,17 @@ func (s *Service) Run(ctx context.Context) error {
 
 	// legacy clients removed; no caches to refresh
 
+	// The history block is read here only; a change needs a restart.
+	if cfg != nil {
+		hist, errHistory := history.Start(ctx, cfg.History, s.coreManager)
+		if errHistory != nil {
+			return errHistory
+		}
+		s.cfgMu.Lock()
+		s.history = hist
+		s.cfgMu.Unlock()
+	}
+
 	s.ensureWebsocketGateway()
 	if homeEnabled {
 		s.registerAvailableExecutors(ctx, executorRegistrationOptions{
@@ -134,6 +146,9 @@ func (s *Service) Run(ctx context.Context) error {
 
 	// handlers no longer depend on legacy clients; pass nil slice initially
 	s.server = api.NewServer(cfg, s.coreManager, s.accessManager, s.configPath, s.serverOptions...)
+	if s.history != nil {
+		s.server.AttachRoutes(s.history.Register)
+	}
 	s.syncPluginRuntimeConfig(ctx)
 	if homeEnabled {
 		s.configRuntimeMu.Lock()
@@ -367,6 +382,20 @@ func (s *Service) Shutdown(ctx context.Context) error {
 				log.Errorf("error stopping API server: %v", errStop)
 				if shutdownErr == nil {
 					shutdownErr = errStop
+				}
+			}
+		}
+
+		// The poller stops before the database closes, after the server stopped serving /history.
+		s.cfgMu.Lock()
+		hist := s.history
+		s.history = nil
+		s.cfgMu.Unlock()
+		if hist != nil {
+			if errClose := hist.Close(); errClose != nil {
+				log.Errorf("failed to close usage history: %v", errClose)
+				if shutdownErr == nil {
+					shutdownErr = errClose
 				}
 			}
 		}

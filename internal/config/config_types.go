@@ -390,6 +390,18 @@ type PprofConfig struct {
 	Addr string `yaml:"addr" json:"addr"`
 }
 
+// HistoryConfig controls the Claude usage history.
+type HistoryConfig struct {
+	// Enabled turns on usage polling and the /usage and /history routes.
+	Enabled bool `yaml:"enabled" json:"enabled"`
+	// Interval is the time between polls. Zero means 5 minutes.
+	Interval time.Duration `yaml:"interval" json:"interval"`
+	// DBPath is the absolute path of the SQLite database.
+	DBPath string `yaml:"db-path" json:"db-path"`
+	// Key is the bearer token that opens /usage and /history.
+	Key string `yaml:"key" json:"-"`
+}
+
 // DiscoveryInterfacesConfig specifies interface inclusion and exclusion rules.
 type DiscoveryInterfacesConfig struct {
 	Include []string `yaml:"include" json:"include"`

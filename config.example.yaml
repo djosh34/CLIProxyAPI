@@ -1213,6 +1213,19 @@ observability:
     enable: false
     addr: "127.0.0.1:8316"
 
+# Claude usage history. Off by default. When enabled, the proxy polls the 5h and weekly usage of
+# every enabled Claude OAuth account at start and then every interval, stores the samples in SQLite
+# (kept forever), and serves GET /usage (live) and GET /history (stored samples) at the root path.
+# Both routes need "Authorization: Bearer <key>"; the client api-keys do not open them.
+# This block is read at start only: restart the proxy after changing it.
+# history:
+#   enabled: true
+#   interval: 5m
+#   # Absolute path; "~" is not expanded.
+#   db-path: "/var/lib/cliproxyapi/history.db"
+#   # Required when enabled; an empty key fails startup.
+#   key: "your-history-key"
+
 # Standard dynamic library plugins are trusted in-process code. They are disabled by default.
 # Build Go examples with go build -buildmode=c-shared for the target GOOS/GOARCH.
 # Other languages can implement the same C ABI and JSON method protocol.
