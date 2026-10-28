@@ -1,12 +1,12 @@
 # The fork's only workflow. On PRs it builds and smoke-tests Dockerfile.scratch.
-# Daily and on dispatch it publishes each new upstream vX.Y.Z tag to GHCR,
-# built from a separate checkout of that tag with this repo's Dockerfile.scratch.
+# On a push to main and on a dispatch of main it builds main, smoke-tests it and
+# pushes both platforms to GHCR under a tag that names the commit.
 name: scratch-image
 
 on:
   pull_request:
-  schedule:
-    - cron: "17 5 * * *"
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -18,15 +18,11 @@ concurrency:
 
 env:
   IMAGE: djosh34/cliproxyapi
-  UPSTREAM: https://github.com/router-for-me/CLIProxyAPI.git
 
 jobs:
   pr:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -55,81 +51,34 @@ jobs:
           build-args: |
             VERSION=pr-${{ github.event.pull_request.number }}
             COMMIT=${{ github.sha }}
-      - name: Tags a publish run would build
-        env:
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 .github/scripts/scratch-tags-to-build.py
-
-  plan:
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-      contents: read
-      packages: read
-    outputs:
-      tags: ${{ steps.tags.outputs.tags }}
-    steps:
-      # GitHub disables schedules after 60 days without repo activity, and the
-      # fork's main gets no new commits. Re-enabling resets that timer.
-      - name: Keep the schedule enabled
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/scratch-image.yml/enable"
-      - name: Checkout
-        uses: actions/checkout@v7
-      - name: Find upstream tags without an image
-        id: tags
-        env:
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          tags="$(python3 .github/scripts/scratch-tags-to-build.py)"
-          echo "Tags to build: $tags"
-          echo "tags=$tags" >> "$GITHUB_OUTPUT"
 
   publish:
-    needs: plan
-    if: needs.plan.outputs.tags != '[]'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-    # Oldest tag first, one at a time, stopping at the first failure. Otherwise a
-    # newer tag in GHCR would hide an older failed one from the next run.
-    strategy:
-      max-parallel: 1
-      fail-fast: true
-      matrix:
-        tag: ${{ fromJSON(needs.plan.outputs.tags) }}
+    env:
+      TAG: main-${{ github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Checkout upstream ${{ matrix.tag }}
-        uses: actions/checkout@v7
-        with:
-          repository: router-for-me/CLIProxyAPI
-          ref: refs/tags/${{ matrix.tag }}
-          path: upstream-src
-      - name: Build metadata
+      - name: Build date
         id: meta
-        run: |
-          echo "commit=$(git -C upstream-src rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+        run: echo "build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
       - name: Build amd64 image
         uses: docker/build-push-action@v7
         with:
-          context: upstream-src
+          context: .
           file: Dockerfile.scratch
           platforms: linux/amd64
           load: true
           tags: cliproxyapi:smoke
           build-args: |
-            VERSION=${{ matrix.tag }}
-            COMMIT=${{ steps.meta.outputs.commit }}
+            VERSION=${{ env.TAG }}
+            COMMIT=${{ github.sha }}
             BUILD_DATE=${{ steps.meta.outputs.build_date }}
       - name: Smoke test
         run: .github/scripts/scratch-smoke-test.sh cliproxyapi:smoke
@@ -143,17 +92,19 @@ jobs:
         id: push
         uses: docker/build-push-action@v7
         with:
-          context: upstream-src
+          context: .
           file: Dockerfile.scratch
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/${{ env.IMAGE }}:${{ matrix.tag }}
+          tags: ghcr.io/${{ env.IMAGE }}:${{ env.TAG }}
           build-args: |
-            VERSION=${{ matrix.tag }}
-            COMMIT=${{ steps.meta.outputs.commit }}
+            VERSION=${{ env.TAG }}
+            COMMIT=${{ github.sha }}
             BUILD_DATE=${{ steps.meta.outputs.build_date }}
-      - name: Record source commit and digest
+      - name: Record commit and digest
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
         run: |
-          line="ghcr.io/$IMAGE:${{ matrix.tag }} source ${{ steps.meta.outputs.commit }} digest ${{ steps.push.outputs.digest }}"
+          line="ghcr.io/$IMAGE:$TAG commit $GITHUB_SHA digest $DIGEST"
           echo "$line"
           echo "$line" >> "$GITHUB_STEP_SUMMARY"
