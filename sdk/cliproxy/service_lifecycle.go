@@ -125,8 +125,10 @@ func (s *Service) Run(ctx context.Context) error {
 	// legacy clients removed; no caches to refresh
 
 	// The history block is read here only; a change needs a restart.
+	var hist *history.Service
 	if cfg != nil {
-		hist, errHistory := history.Start(ctx, cfg.History, s.coreManager)
+		var errHistory error
+		hist, errHistory = history.Start(ctx, cfg.History, s.coreManager)
 		if errHistory != nil {
 			return errHistory
 		}
@@ -146,8 +148,8 @@ func (s *Service) Run(ctx context.Context) error {
 
 	// handlers no longer depend on legacy clients; pass nil slice initially
 	s.server = api.NewServer(cfg, s.coreManager, s.accessManager, s.configPath, s.serverOptions...)
-	if s.history != nil {
-		s.server.AttachRoutes(s.history.Register)
+	if hist != nil {
+		s.server.AttachRoutes(hist.Register)
 	}
 	s.syncPluginRuntimeConfig(ctx)
 	if homeEnabled {
