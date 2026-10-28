@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/api"
+	"github.com/router-for-me/CLIProxyAPI/v8/internal/history"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/home"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/homeplugins"
 	"github.com/router-for-me/CLIProxyAPI/v8/internal/pluginhost"
@@ -80,6 +81,9 @@ type Service struct {
 
 	// watcherCancel cancels the watcher context.
 	watcherCancel context.CancelFunc
+
+	// history polls Claude usage and serves /usage and /history; nil when disabled.
+	history *history.Service
 
 	// authUpdates channel for authentication updates.
 	authUpdates chan watcher.AuthUpdate

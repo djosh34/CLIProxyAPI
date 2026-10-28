@@ -63,6 +63,10 @@ type Config struct {
 	// Pprof config controls the optional pprof HTTP debug server.
 	Pprof PprofConfig `yaml:"pprof" json:"pprof"`
 
+	// History configures Claude usage polling and the /usage and /history routes.
+	// It is read at start only; a change needs a restart.
+	History HistoryConfig `yaml:"history" json:"-"`
+
 	// Discovery configures local network mDNS / DNS-SD service advertising.
 	Discovery DiscoveryConfig `yaml:"discovery" json:"discovery"`
 
