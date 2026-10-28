@@ -1,5 +1,5 @@
 # The fork's only workflow. On PRs it builds and smoke-tests Dockerfile.scratch.
-# On a push to main and on dispatch it builds this checkout, smoke-tests it and
+# On a push to main and on a dispatch of main it builds main, smoke-tests it and
 # pushes both platforms to GHCR under a tag that names the commit.
 name: scratch-image
 
@@ -53,7 +53,7 @@ jobs:
             COMMIT=${{ github.sha }}
 
   publish:
-    if: github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
