@@ -4,7 +4,7 @@
 
 FROM --platform=$BUILDPLATFORM golang:1.26-bookworm AS builder
 
-# Use the Go version from go.mod, so newer upstream tags still build.
+# Use the Go version from go.mod, so an upstream merge that raises it still builds.
 ENV GOTOOLCHAIN=auto
 
 WORKDIR /src
